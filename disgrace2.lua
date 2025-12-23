@@ -25,6 +25,7 @@ local Config = {
     SelectedItems = {}, -- Key = item.key, Value = true/false
     AutoBuyEnabled = false,
     AutoBuyDelay = 1,
+    InfiniteMagnet = false, -- [NEW] Added this line
     ConfigName = "Default" -- Name of currently loaded config
 }
 
@@ -106,8 +107,10 @@ local function saveConfig(name)
     local data = {
         SelectedItems = Config.SelectedItems,
         AutoBuyEnabled = Config.AutoBuyEnabled,
-        AutoBuyDelay = Config.AutoBuyDelay
+        AutoBuyDelay = Config.AutoBuyDelay,
+        InfiniteMagnet = Config.InfiniteMagnet -- [NEW] Save magnet state
     }
+
     if writefile then
         writefile(getFileName(name), HttpService:JSONEncode(data))
         Config.ConfigName = name
@@ -122,12 +125,14 @@ local function loadConfig(name)
             Config.SelectedItems = r.SelectedItems or {}
             Config.AutoBuyEnabled = r.AutoBuyEnabled or false
             Config.AutoBuyDelay = r.AutoBuyDelay or 1
+            Config.InfiniteMagnet = r.InfiniteMagnet or false -- [NEW] Load magnet state
             Config.ConfigName = name
             return true
         end
     end
     return false
 end
+
 
 local function deleteConfig(name)
     local fname = getFileName(name)
@@ -221,22 +226,151 @@ CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 
 -- Tab Buttons
 local TabContainer = create("Frame", { Size = UDim2.new(1, -16, 0, 30), Position = UDim2.new(0, 8, 0, 32), BackgroundColor3 = C_MAIN, Parent = MainFrame }, { create("UICorner", {CornerRadius = UDim.new(0, 6)}) })
-local MerchantBtn = create("TextButton", { Parent = TabContainer, Size = UDim2.new(0.5, 0, 1, 0), BackgroundTransparency = 1, Text = "Merchant", Font = Enum.Font.GothamMedium, TextColor3 = C_TEXT, TextSize = 13 })
-local ConfigBtn = create("TextButton", { Parent = TabContainer, Size = UDim2.new(0.5, 0, 1, 0), Position = UDim2.new(0.5, 0, 0, 0), BackgroundTransparency = 1, Text = "Config", Font = Enum.Font.GothamMedium, TextColor3 = C_TEXT_DIM, TextSize = 13 })
-local Indicator = create("Frame", { Parent = TabContainer, Size = UDim2.new(0.5, -4, 0, 2), Position = UDim2.new(0, 2, 1, -2), BackgroundColor3 = C_GREEN, BorderSizePixel = 0 })
+
+local MerchantBtn = create("TextButton", { Parent = TabContainer, Size = UDim2.new(0.333, 0, 1, 0), BackgroundTransparency = 1, Text = "Merchant", Font = Enum.Font.GothamMedium, TextColor3 = C_TEXT, TextSize = 13 })
+local FarmingBtn = create("TextButton", { Parent = TabContainer, Size = UDim2.new(0.333, 0, 1, 0), Position = UDim2.new(0.333, 0, 0, 0), BackgroundTransparency = 1, Text = "Farming", Font = Enum.Font.GothamMedium, TextColor3 = C_TEXT_DIM, TextSize = 13 })
+local ConfigBtn = create("TextButton", { Parent = TabContainer, Size = UDim2.new(0.333, 0, 1, 0), Position = UDim2.new(0.666, 0, 0, 0), BackgroundTransparency = 1, Text = "Config", Font = Enum.Font.GothamMedium, TextColor3 = C_TEXT_DIM, TextSize = 13 })
+
+local Indicator = create("Frame", { Parent = TabContainer, Size = UDim2.new(0.333, -4, 0, 2), Position = UDim2.new(0, 2, 1, -2), BackgroundColor3 = C_GREEN, BorderSizePixel = 0 })
+
 
 -- Pages
 local PageContainer = create("Frame", { Size = UDim2.new(1, -16, 1, -74), Position = UDim2.new(0, 8, 0, 70), BackgroundTransparency = 1, Parent = MainFrame })
+
 local MerchantPage = create("ScrollingFrame", { Parent = PageContainer, Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, ScrollBarThickness = 2, ScrollBarImageColor3 = C_ACCENT, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0,0,0,0) })
+local FarmingPage = create("ScrollingFrame", { Parent = PageContainer, Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Visible = false, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0,0,0,0), ScrollBarThickness = 2, ScrollBarImageColor3 = C_ACCENT })
 local ConfigPage = create("ScrollingFrame", { Parent = PageContainer, Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Visible = false, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0,0,0,0), ScrollBarThickness = 2, ScrollBarImageColor3 = C_ACCENT })
 
 create("UIListLayout", { Parent = MerchantPage, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8) })
 create("UIPadding", { Parent = MerchantPage, PaddingRight = UDim.new(0, 4) })
+
+create("UIListLayout", { Parent = FarmingPage, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8) })
+create("UIPadding", { Parent = FarmingPage, PaddingRight = UDim.new(0, 4) })
+
 create("UIListLayout", { Parent = ConfigPage, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8) })
 
+
 -- Switch Tabs
-MerchantBtn.MouseButton1Click:Connect(function() MerchantPage.Visible = true; ConfigPage.Visible = false; MerchantBtn.TextColor3 = C_TEXT; ConfigBtn.TextColor3 = C_TEXT_DIM; Indicator:TweenPosition(UDim2.new(0, 2, 1, -2), "Out", "Quad", 0.2) end)
-ConfigBtn.MouseButton1Click:Connect(function() MerchantPage.Visible = false; ConfigPage.Visible = true; MerchantBtn.TextColor3 = C_TEXT_DIM; ConfigBtn.TextColor3 = C_TEXT; Indicator:TweenPosition(UDim2.new(0.5, 2, 1, -2), "Out", "Quad", 0.2) end)
+MerchantBtn.MouseButton1Click:Connect(function()
+    MerchantPage.Visible = true; FarmingPage.Visible = false; ConfigPage.Visible = false
+    MerchantBtn.TextColor3 = C_TEXT; FarmingBtn.TextColor3 = C_TEXT_DIM; ConfigBtn.TextColor3 = C_TEXT_DIM
+    Indicator:TweenPosition(UDim2.new(0, 2, 1, -2), "Out", "Quad", 0.2)
+end)
+
+FarmingBtn.MouseButton1Click:Connect(function()
+    MerchantPage.Visible = false; FarmingPage.Visible = true; ConfigPage.Visible = false
+    MerchantBtn.TextColor3 = C_TEXT_DIM; FarmingBtn.TextColor3 = C_TEXT; ConfigBtn.TextColor3 = C_TEXT_DIM
+    Indicator:TweenPosition(UDim2.new(0.333, 2, 1, -2), "Out", "Quad", 0.2)
+end)
+
+ConfigBtn.MouseButton1Click:Connect(function()
+    MerchantPage.Visible = false; FarmingPage.Visible = false; ConfigPage.Visible = true
+    MerchantBtn.TextColor3 = C_TEXT_DIM; FarmingBtn.TextColor3 = C_TEXT_DIM; ConfigBtn.TextColor3 = C_TEXT
+    Indicator:TweenPosition(UDim2.new(0.666, 2, 1, -2), "Out", "Quad", 0.2)
+end)
+
+--== FARMING PAGE LOGIC ==--
+
+local FarmingCategory = create("Frame", { Parent = FarmingPage, Size = UDim2.new(1, 0, 0, 80), BackgroundColor3 = C_MAIN, ClipsDescendants = true }, { create("UICorner", {CornerRadius = UDim.new(0, 6)}), create("UIStroke", {Color = C_ACCENT}) })
+
+create("TextLabel", { Parent = FarmingCategory, Text = "Collect Range", Font = Enum.Font.GothamBold, TextSize = 13, TextColor3 = C_TEXT, Size = UDim2.new(1, -20, 0, 30), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, TextXAlignment = Enum.TextXAlignment.Left })
+
+local MagnetBtn = create("TextButton", { 
+    Parent = FarmingCategory, 
+    Size = UDim2.new(1, -24, 0, 32), 
+    Position = UDim2.new(0, 12, 0, 36), 
+    BackgroundColor3 = C_ACCENT, 
+    Text = "Enable Infinite Magnet", 
+    Font = Enum.Font.GothamBold, 
+    TextSize = 12, 
+    TextColor3 = C_TEXT 
+}, { create("UICorner", {CornerRadius = UDim.new(0, 4)}) })
+
+addTooltip(MagnetBtn, "Toggle the orb magnet on/off")
+
+-- Variables to store the connections so we can stop them
+local magnetActive = false
+local magnetConnections = {} -- Stores the heartbeat loops for each orb
+local magnetListener = nil   -- Stores the 'ChildAdded' event
+
+addTooltip(MagnetBtn, "Toggle the orb magnet on/off")
+
+-- Variables
+local magnetConnections = {} 
+local magnetListener = nil   
+
+-- Function to handle the actual Magnet Logic
+local function SetMagnetState(state)
+    Config.InfiniteMagnet = state -- Update the config variable
+    
+    if state then
+        -- ENABLE
+        MagnetBtn.Text = "Magnet Active"
+        MagnetBtn.TextColor3 = C_GREEN
+        MagnetBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+
+        local RunService = game:GetService("RunService")
+        local Players = game:GetService("Players")
+        local workspace = game:GetService("Workspace")
+        local player = Players.LocalPlayer
+        local orbFolder = workspace:WaitForChild("Orbs")
+
+        local function magnet(orb)
+            if not Config.InfiniteMagnet then return end
+            if not orb:IsA("BasePart") and not orb:IsA("Model") then return end
+            local part = orb:IsA("Model") and (orb.PrimaryPart or orb:FindFirstChildWhichIsA("BasePart")) or orb
+            if not part then return end
+
+            part.Transparency = 1
+            part.CanCollide = false
+            part.CastShadow = false
+            part.Anchored = true
+
+            local connection
+            connection = RunService.Heartbeat:Connect(function()
+                if not Config.InfiniteMagnet then 
+                    if connection then connection:Disconnect() end
+                    return 
+                end
+                if not part.Parent or not player.Character then
+                    connection:Disconnect()
+                    return
+                end
+                local root = player.Character:FindFirstChild("HumanoidRootPart")
+                if root then part.CFrame = root.CFrame end
+            end)
+            table.insert(magnetConnections, connection)
+        end
+
+        for _, orb in pairs(orbFolder:GetChildren()) do magnet(orb) end
+        magnetListener = orbFolder.ChildAdded:Connect(function(orb)
+            task.wait()
+            if Config.InfiniteMagnet then magnet(orb) end
+        end)
+    else
+        -- DISABLE
+        MagnetBtn.Text = "Enable Infinite Magnet"
+        MagnetBtn.TextColor3 = C_TEXT
+        MagnetBtn.BackgroundColor3 = C_ACCENT
+
+        if magnetListener then magnetListener:Disconnect() magnetListener = nil end
+        for _, conn in pairs(magnetConnections) do
+            if conn then conn:Disconnect() end
+        end
+        magnetConnections = {}
+    end
+end
+
+-- Button Click Event
+MagnetBtn.MouseButton1Click:Connect(function()
+    SetMagnetState(not Config.InfiniteMagnet) -- Toggle state
+end)
+
+-- [IMPORTANT] Auto-Start if Config says so
+if Config.InfiniteMagnet then
+    SetMagnetState(true)
+end
+
 
 --== MERCHANT PAGE LOGIC ==--
 
