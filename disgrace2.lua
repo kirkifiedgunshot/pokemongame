@@ -220,7 +220,7 @@ UserInputService.InputBegan:Connect(function(i,g) if not g and i.KeyCode == Enum
 
 -- Header
 local TopBar = create("Frame", { Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Parent = MainFrame })
-create("TextLabel", { Parent = TopBar, Text = "  MERCHANT UTILITY", Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = C_TEXT, Size = UDim2.new(1, -40, 1, 0), BackgroundTransparency = 1, TextXAlignment = Enum.TextXAlignment.Left })
+create("TextLabel", { Parent = TopBar, Text = "  GLUM HUB", Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = C_TEXT, Size = UDim2.new(1, -40, 1, 0), BackgroundTransparency = 1, TextXAlignment = Enum.TextXAlignment.Left })
 local CloseBtn = create("TextButton", { Parent = TopBar, Text = "X", Font = Enum.Font.GothamBold, TextColor3 = C_RED, Size = UDim2.new(0, 32, 0, 32), Position = UDim2.new(1, -32, 0, 0), BackgroundTransparency = 1 })
 CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 
