@@ -35,8 +35,14 @@ local Config = {
     Farm1Enabled = false,   -- Single Farm
     Farm2Enabled = false,   -- Group Farm
 
+    -- NEW SETTINGS HERE:
+    FarmCoinsEnabled = false,  -- Target only coins/piles/diamonds
+    FarmBushesEnabled = false, -- Target only bushes/plants
+    GroupChests = true,        -- true = All pets on one chest; false = 1 pet per chest
+
     ConfigName = "Default"
 }
+
 
 --== ITEM DATA (MERCHANT) ==--
 local Items = {
@@ -114,17 +120,25 @@ local function saveConfig(name)
         AutoBuyEnabled = Config.AutoBuyEnabled,
         AutoBuyDelay = Config.AutoBuyDelay,
         InfiniteMagnet = Config.InfiniteMagnet,
-        -- [NEW] Save Farming Configs
+        
+        -- NEW Save Farming Configs
         FarmRange = Config.FarmRange,
         Farm1Enabled = Config.Farm1Enabled,
-        Farm2Enabled = Config.Farm2Enabled
+        Farm2Enabled = Config.Farm2Enabled,
+        
+        -- ADD THESE LINES:
+        FarmCoinsEnabled = Config.FarmCoinsEnabled,
+        FarmBushesEnabled = Config.FarmBushesEnabled,
+        GroupChests = Config.GroupChests,
+        
+        ConfigName = name
     }
     
     if writefile then
         writefile(getFileName(name), HttpService:JSONEncode(data))
-        Config.ConfigName = name
     end
 end
+
 
 local function loadConfig(name)
     local fname = getFileName(name)
@@ -140,6 +154,15 @@ local function loadConfig(name)
             Config.FarmRange = r.FarmRange or 300
             Config.Farm1Enabled = r.Farm1Enabled or false
             Config.Farm2Enabled = r.Farm2Enabled or false
+            Config.FarmCoinsEnabled = r.FarmCoinsEnabled or false
+            Config.FarmBushesEnabled = r.FarmBushesEnabled or false
+
+            -- Special check for GroupChests to default to TRUE if nil (for old configs)
+            if r.GroupChests ~= nil then
+                Config.GroupChests = r.GroupChests
+            else
+                Config.GroupChests = true 
+            end
             
             Config.ConfigName = name
             return true
@@ -348,6 +371,48 @@ RangeInput.FocusLost:Connect(function()
     RangeInput.Text = tostring(Config.FarmRange)
 end)
 
+local updateFarmButtons -- This tells the script "this function is coming later"
+
+-- 2.5 FILTERS & SETTINGS
+-- Increased height to fit the extra "Default" button
+local FilterPanel = create("Frame", { Parent = FarmingPage, Size = UDim2.new(1, 0, 0, 125), BackgroundColor3 = C_MAIN }, { create("UICorner", {CornerRadius = UDim.new(0, 6)}), create("UIStroke", {Color = C_ACCENT}) })
+create("TextLabel", { Parent = FilterPanel, Text = "Target Filter (Requires Single Farm)", Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = C_TEXT_DIM, Size = UDim2.new(1, -20, 0, 20), Position = UDim2.new(0, 10, 0, 5), BackgroundTransparency = 1, TextXAlignment = Enum.TextXAlignment.Left })
+
+-- 1. Default Button (Top)
+local DefaultBtn = create("TextButton", { Parent = FilterPanel, Size = UDim2.new(1, -20, 0, 24), Position = UDim2.new(0, 10, 0, 28), BackgroundColor3 = C_ACCENT, Text = "Default (Target All)", Font = Enum.Font.GothamBold, TextSize = 11, TextColor3 = C_TEXT }, { create("UICorner", {CornerRadius = UDim.new(0, 4)}) })
+
+-- 2. Coins & Bushes (Middle Row)
+local CoinsBtn = create("TextButton", { Parent = FilterPanel, Size = UDim2.new(0.5, -14, 0, 24), Position = UDim2.new(0, 10, 0, 56), BackgroundColor3 = C_ACCENT, Text = "Coins Only", Font = Enum.Font.GothamBold, TextSize = 11, TextColor3 = C_TEXT }, { create("UICorner", {CornerRadius = UDim.new(0, 4)}) })
+local BushesBtn = create("TextButton", { Parent = FilterPanel, Size = UDim2.new(0.5, -14, 0, 24), Position = UDim2.new(0.5, 4, 0, 56), BackgroundColor3 = C_ACCENT, Text = "Bushes Only", Font = Enum.Font.GothamBold, TextSize = 11, TextColor3 = C_TEXT }, { create("UICorner", {CornerRadius = UDim.new(0, 4)}) })
+
+-- 3. Focus on breakables (Bottom)
+local GroupChestBtn = create("TextButton", { Parent = FilterPanel, Size = UDim2.new(1, -20, 0, 24), Position = UDim2.new(0, 10, 0, 88), BackgroundColor3 = C_ACCENT, Text = "Focus Pets On Chests & PetBalls: ON", Font = Enum.Font.GothamBold, TextSize = 11, TextColor3 = C_TEXT }, { create("UICorner", {CornerRadius = UDim.new(0, 4)}) })
+addTooltip(GroupChestBtn, "ON: All of your pets rush to petballs & chests. OFF: Pets target closest breakables.")
+
+-- Logic: "Radio Button" style. Clicking one disables the others.
+DefaultBtn.MouseButton1Click:Connect(function()
+    Config.FarmCoinsEnabled = false
+    Config.FarmBushesEnabled = false
+    updateFarmButtons()
+end)
+
+CoinsBtn.MouseButton1Click:Connect(function()
+    Config.FarmCoinsEnabled = not Config.FarmCoinsEnabled
+    if Config.FarmCoinsEnabled then Config.FarmBushesEnabled = false end
+    updateFarmButtons()
+end)
+
+BushesBtn.MouseButton1Click:Connect(function()
+    Config.FarmBushesEnabled = not Config.FarmBushesEnabled
+    if Config.FarmBushesEnabled then Config.FarmCoinsEnabled = false end
+    updateFarmButtons()
+end)
+
+GroupChestBtn.MouseButton1Click:Connect(function()
+    Config.GroupChests = not Config.GroupChests
+    updateFarmButtons()
+end)
+
 -- 3. FARM TOGGLES (RENAMED)
 local Farm1Btn = create("TextButton", {
     Parent = FarmingPage, Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = C_ACCENT,
@@ -361,27 +426,71 @@ local Farm2Btn = create("TextButton", {
 }, { create("UICorner", {CornerRadius = UDim.new(0, 6)}) })
 addTooltip(Farm2Btn, "Sends ALL pets to the nearest breakable.")
 
-local function updateFarmButtons()
+updateFarmButtons = function()
+    -- Original Main Buttons
     if Config.Farm1Enabled then
-        Farm1Btn.Text = "Single Farm: ACTIVE"
+        Farm1Btn.Text = "Single Farm ACTIVE"
         Farm1Btn.TextColor3 = C_GREEN
         Farm1Btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     else
-        Farm1Btn.Text = "Single Farm (1 Pet/Coin)"
+        Farm1Btn.Text = "Single Farm (Start)"
         Farm1Btn.TextColor3 = C_TEXT
         Farm1Btn.BackgroundColor3 = C_ACCENT
     end
-
+    
     if Config.Farm2Enabled then
-        Farm2Btn.Text = "Group Farm: ACTIVE"
+        Farm2Btn.Text = "Group Farm ACTIVE"
         Farm2Btn.TextColor3 = C_GREEN
         Farm2Btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     else
-        Farm2Btn.Text = "Group Farm (ALL)"
+        Farm2Btn.Text = "Group Farm (Start)"
         Farm2Btn.TextColor3 = C_TEXT
         Farm2Btn.BackgroundColor3 = C_ACCENT
     end
+
+    -- Filter Buttons Logic (Radio Style)
+    local isCoins = Config.FarmCoinsEnabled
+    local isBushes = Config.FarmBushesEnabled
+    local isDefault = (not isCoins and not isBushes) -- If both are off, Default is ON
+
+    -- 1. Default Button
+    if isDefault then
+        DefaultBtn.BackgroundColor3 = C_GREEN
+        DefaultBtn.TextColor3 = Color3.fromRGB(40, 40, 40)
+    else
+        DefaultBtn.BackgroundColor3 = C_ACCENT
+        DefaultBtn.TextColor3 = C_TEXT
+    end
+
+    -- 2. Coins Button
+    if isCoins then
+        CoinsBtn.BackgroundColor3 = C_GREEN
+        CoinsBtn.TextColor3 = Color3.fromRGB(40, 40, 40)
+    else
+        CoinsBtn.BackgroundColor3 = C_ACCENT
+        CoinsBtn.TextColor3 = C_TEXT
+    end
+
+    -- 3. Bushes Button
+    if isBushes then
+        BushesBtn.BackgroundColor3 = C_GREEN
+        BushesBtn.TextColor3 = Color3.fromRGB(40, 40, 40)
+    else
+        BushesBtn.BackgroundColor3 = C_ACCENT
+        BushesBtn.TextColor3 = C_TEXT
+    end
+    
+    -- 4. Group Chests
+    if Config.GroupChests then
+        GroupChestBtn.Text = "Group Chests: ON"
+        GroupChestBtn.TextColor3 = C_GREEN
+    else
+        GroupChestBtn.Text = "Group Chests: OFF"
+        GroupChestBtn.TextColor3 = C_RED
+    end
 end
+
+
 
 Farm1Btn.MouseButton1Click:Connect(function()
     Config.Farm1Enabled = not Config.Farm1Enabled
@@ -524,9 +633,9 @@ task.spawn(function()
         local Character = LocalPlayer.Character
         local Root = Character and Character:FindFirstChild("HumanoidRootPart")
         
-        -- === FARM 1: SINGLE FARM (PACKET) ===
+                -- === FARM 1: SINGLE FARM (PACKET) ===
         if Config.Farm1Enabled and Root then
-             -- 1. GET FREE PETS
+            -- 1. GET FREE PETS
             local MyData = ClientPlayerManager:get_player_data(LocalPlayer)
             local FreePets = {}
             if MyData and MyData.entities then
@@ -536,12 +645,18 @@ task.spawn(function()
                     end
                 end
             end
-            
+
             if #FreePets > 0 then
                 local MyPos = Root.Position
                 local Chests = {}
                 local Others = {}
                 local Range = Config.FarmRange or 300
+                
+                -- Filters
+                local CoinsOnly = Config.FarmCoinsEnabled
+                local BushesOnly = Config.FarmBushesEnabled
+                local TargetCoins = {"coin", "pile", "diamond"}
+                local TargetBushes = {"bush", "tree", "flower", "plant", "shrub", "mushroom"}
 
                 -- 2. SCAN & SORT
                 for id, farmeable in pairs(WorldManager.farmeables) do
@@ -556,13 +671,33 @@ task.spawn(function()
                             end
                             Type = string.lower(Type)
                             
-                            local Data = {id=id, dist=Dist}
-                            local IsPriority = false
-                            for _, k in pairs(HighPriority) do
-                                if string.find(Type, k) then IsPriority = true break end
+                            local Valid = true
+                            if CoinsOnly then
+                                Valid = false
+                                for _, k in pairs(TargetCoins) do if string.find(Type, k) then Valid = true; break end end
+                                -- Allow chests/priority in coin mode so you don't skip big loot
+                                if not Valid then
+                                    for _, k in pairs(HighPriority) do if string.find(Type, k) then Valid = true; break end end
+                                end
+                            elseif BushesOnly then
+                                Valid = false
+                                for _, k in pairs(TargetBushes) do if string.find(Type, k) then Valid = true; break end end
                             end
-                            
-                            if IsPriority then table.insert(Chests, Data) else table.insert(Others, Data) end
+
+                            if Valid then
+                                local Data = {id=id, dist=Dist}
+                                local IsPriority = false
+                                
+                                -- Only prioritize (group up) if GroupChests is ON
+                                -- And usually we don't group up for bushes, so ignore priority if BushesOnly is active
+                                if Config.GroupChests and not BushesOnly then
+                                    for _, k in pairs(HighPriority) do
+                                        if string.find(Type, k) then IsPriority = true; break end
+                                    end
+                                end
+
+                                if IsPriority then table.insert(Chests, Data) else table.insert(Others, Data) end
+                            end
                         end
                     end
                 end
@@ -574,13 +709,13 @@ task.spawn(function()
                 local Tasks = {}
                 
                 if #Chests > 0 then
-                    -- CHEST MODE: All free pets go to ONE chest
+                    -- CHEST MODE: All free pets go to ONE chest (Priority)
                     local Target = Chests[1].id
                     for _, petID in pairs(FreePets) do
                         Tasks[petID] = { ["task"] = "farm", ["target_id"] = Target }
                     end
                 else
-                    -- COIN MODE: 1 Pet per Coin
+                    -- SCATTER MODE: 1 Pet per Target
                     local CoinIndex = 1
                     for _, petID in pairs(FreePets) do
                         if Others[CoinIndex] then
@@ -598,7 +733,7 @@ task.spawn(function()
                     EventHandler:send("SET_PETS_TASKS", Tasks)
                 end
             end
-            
+
         -- === FARM 2: GROUP FARM (WOLF PACK) ===
         elseif Config.Farm2Enabled and Root then
             if WorldManager:count_free_pets() > 0 then
