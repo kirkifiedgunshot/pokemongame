@@ -1,5 +1,5 @@
 --// Modern Merchant GUI + Advanced Farming
---// Features: Merchant Auto-Buy, Magnet, Single Farm, Group Farm, Config Saving
+--// Features: Merchant Auto-Buy, Magnet, Single Farm, Group Farm, Config Saving, Ignore Rares
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -35,10 +35,11 @@ local Config = {
     Farm1Enabled = false,   -- Single Farm
     Farm2Enabled = false,   -- Group Farm
 
-    -- NEW SETTINGS HERE:
+    -- NEW SETTINGS:
     FarmCoinsEnabled = false,  -- Target only coins/piles/diamonds
     FarmBushesEnabled = false, -- Target only bushes/plants
     GroupChests = true,        -- true = All pets on one chest; false = 1 pet per chest
+    IgnoreRares = false,       -- NEW: Ignore Crystals/Super Candy
 
     ConfigName = "Default"
 }
@@ -126,10 +127,11 @@ local function saveConfig(name)
         Farm1Enabled = Config.Farm1Enabled,
         Farm2Enabled = Config.Farm2Enabled,
         
-        -- ADD THESE LINES:
+        -- FILTERS
         FarmCoinsEnabled = Config.FarmCoinsEnabled,
         FarmBushesEnabled = Config.FarmBushesEnabled,
         GroupChests = Config.GroupChests,
+        IgnoreRares = Config.IgnoreRares, -- NEW
         
         ConfigName = name
     }
@@ -138,7 +140,6 @@ local function saveConfig(name)
         writefile(getFileName(name), HttpService:JSONEncode(data))
     end
 end
-
 
 local function loadConfig(name)
     local fname = getFileName(name)
@@ -156,6 +157,7 @@ local function loadConfig(name)
             Config.Farm2Enabled = r.Farm2Enabled or false
             Config.FarmCoinsEnabled = r.FarmCoinsEnabled or false
             Config.FarmBushesEnabled = r.FarmBushesEnabled or false
+            Config.IgnoreRares = r.IgnoreRares or false -- NEW
 
             -- Special check for GroupChests to default to TRUE if nil (for old configs)
             if r.GroupChests ~= nil then
@@ -372,11 +374,10 @@ RangeInput.FocusLost:Connect(function()
 end)
 
 local updateFarmButtons -- This tells the script "this function is coming later"
-
 -- 2.5 FILTERS & SETTINGS
--- Increased height to fit the extra "Default" button
-local FilterPanel = create("Frame", { Parent = FarmingPage, Size = UDim2.new(1, 0, 0, 125), BackgroundColor3 = C_MAIN }, { create("UICorner", {CornerRadius = UDim.new(0, 6)}), create("UIStroke", {Color = C_ACCENT}) })
-create("TextLabel", { Parent = FilterPanel, Text = "Target Filter (Requires Single Farm)", Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = C_TEXT_DIM, Size = UDim2.new(1, -20, 0, 20), Position = UDim2.new(0, 10, 0, 5), BackgroundTransparency = 1, TextXAlignment = Enum.TextXAlignment.Left })
+-- Increased height for the new button
+local FilterPanel = create("Frame", { Parent = FarmingPage, Size = UDim2.new(1, 0, 0, 155), BackgroundColor3 = C_MAIN }, { create("UICorner", {CornerRadius = UDim.new(0, 6)}), create("UIStroke", {Color = C_ACCENT}) })
+create("TextLabel", { Parent = FilterPanel, Text = "Target Filter", Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = C_TEXT_DIM, Size = UDim2.new(1, -20, 0, 20), Position = UDim2.new(0, 10, 0, 5), BackgroundTransparency = 1, TextXAlignment = Enum.TextXAlignment.Left })
 
 -- 1. Default Button (Top)
 local DefaultBtn = create("TextButton", { Parent = FilterPanel, Size = UDim2.new(1, -20, 0, 24), Position = UDim2.new(0, 10, 0, 28), BackgroundColor3 = C_ACCENT, Text = "Default (Target All)", Font = Enum.Font.GothamBold, TextSize = 11, TextColor3 = C_TEXT }, { create("UICorner", {CornerRadius = UDim.new(0, 4)}) })
@@ -385,9 +386,14 @@ local DefaultBtn = create("TextButton", { Parent = FilterPanel, Size = UDim2.new
 local CoinsBtn = create("TextButton", { Parent = FilterPanel, Size = UDim2.new(0.5, -14, 0, 24), Position = UDim2.new(0, 10, 0, 56), BackgroundColor3 = C_ACCENT, Text = "Coins Only", Font = Enum.Font.GothamBold, TextSize = 11, TextColor3 = C_TEXT }, { create("UICorner", {CornerRadius = UDim.new(0, 4)}) })
 local BushesBtn = create("TextButton", { Parent = FilterPanel, Size = UDim2.new(0.5, -14, 0, 24), Position = UDim2.new(0.5, 4, 0, 56), BackgroundColor3 = C_ACCENT, Text = "Bushes Only", Font = Enum.Font.GothamBold, TextSize = 11, TextColor3 = C_TEXT }, { create("UICorner", {CornerRadius = UDim.new(0, 4)}) })
 
--- 3. Focus on breakables (Bottom)
+-- 3. Focus on breakables
 local GroupChestBtn = create("TextButton", { Parent = FilterPanel, Size = UDim2.new(1, -20, 0, 24), Position = UDim2.new(0, 10, 0, 88), BackgroundColor3 = C_ACCENT, Text = "Focus Pets On Chests & PetBalls: ON", Font = Enum.Font.GothamBold, TextSize = 11, TextColor3 = C_TEXT }, { create("UICorner", {CornerRadius = UDim.new(0, 4)}) })
 addTooltip(GroupChestBtn, "ON: All of your pets rush to petballs & chests. OFF: Pets target closest breakables.")
+
+-- 4. IGNORE RARES (NEW)
+local IgnoreRaresBtn = create("TextButton", { Parent = FilterPanel, Size = UDim2.new(1, -20, 0, 24), Position = UDim2.new(0, 10, 0, 116), BackgroundColor3 = C_ACCENT, Text = "Ignore Crystals & Super Candy: OFF", Font = Enum.Font.GothamBold, TextSize = 11, TextColor3 = C_TEXT }, { create("UICorner", {CornerRadius = UDim.new(0, 4)}) })
+addTooltip(IgnoreRaresBtn, "When ON, pets will not target Crystals or Super Candy.")
+
 
 -- Logic: "Radio Button" style. Clicking one disables the others.
 DefaultBtn.MouseButton1Click:Connect(function()
@@ -410,6 +416,11 @@ end)
 
 GroupChestBtn.MouseButton1Click:Connect(function()
     Config.GroupChests = not Config.GroupChests
+    updateFarmButtons()
+end)
+
+IgnoreRaresBtn.MouseButton1Click:Connect(function()
+    Config.IgnoreRares = not Config.IgnoreRares
     updateFarmButtons()
 end)
 
@@ -488,9 +499,16 @@ updateFarmButtons = function()
         GroupChestBtn.Text = "Group Chests: OFF"
         GroupChestBtn.TextColor3 = C_RED
     end
+    
+    -- 5. Ignore Rares
+    if Config.IgnoreRares then
+        IgnoreRaresBtn.Text = "Ignore Crystals & Super Candy: ON"
+        IgnoreRaresBtn.TextColor3 = C_GREEN
+    else
+        IgnoreRaresBtn.Text = "Ignore Crystals & Super Candy: OFF"
+        IgnoreRaresBtn.TextColor3 = C_RED
+    end
 end
-
-
 
 Farm1Btn.MouseButton1Click:Connect(function()
     Config.Farm1Enabled = not Config.Farm1Enabled
@@ -625,6 +643,10 @@ task.spawn(function()
     local EventHandler = require(ReplicatedStorage.Common.EventHandler)
 
     local HighPriority = {"chest", "petball", "super_candy", "crystal"}
+    local RaresList = {"crystal", "super_candy"} -- Objects to ignore if checkbox is checked
+    -- Filter Lists
+    local TargetCoins = {"coin", "pile", "diamond"}
+    local TargetBushes = {"bush", "tree", "flower", "plant", "shrub", "mushroom"}
 
     print(">> Farming Logic Loaded")
 
@@ -633,7 +655,7 @@ task.spawn(function()
         local Character = LocalPlayer.Character
         local Root = Character and Character:FindFirstChild("HumanoidRootPart")
         
-                -- === FARM 1: SINGLE FARM (PACKET) ===
+        -- === FARM 1: SINGLE FARM (PACKET) ===
         if Config.Farm1Enabled and Root then
             -- 1. GET FREE PETS
             local MyData = ClientPlayerManager:get_player_data(LocalPlayer)
@@ -655,8 +677,6 @@ task.spawn(function()
                 -- Filters
                 local CoinsOnly = Config.FarmCoinsEnabled
                 local BushesOnly = Config.FarmBushesEnabled
-                local TargetCoins = {"coin", "pile", "diamond"}
-                local TargetBushes = {"bush", "tree", "flower", "plant", "shrub", "mushroom"}
 
                 -- 2. SCAN & SORT
                 for id, farmeable in pairs(WorldManager.farmeables) do
@@ -672,16 +692,25 @@ task.spawn(function()
                             Type = string.lower(Type)
                             
                             local Valid = true
-                            if CoinsOnly then
-                                Valid = false
-                                for _, k in pairs(TargetCoins) do if string.find(Type, k) then Valid = true; break end end
-                                -- Allow chests/priority in coin mode so you don't skip big loot
-                                if not Valid then
-                                    for _, k in pairs(HighPriority) do if string.find(Type, k) then Valid = true; break end end
+                            -- CHECK 1: IGNORE RARES
+                            if Config.IgnoreRares then
+                                for _, k in pairs(RaresList) do
+                                    if string.find(Type, k) then Valid = false; break end
                                 end
-                            elseif BushesOnly then
-                                Valid = false
-                                for _, k in pairs(TargetBushes) do if string.find(Type, k) then Valid = true; break end end
+                            end
+
+                            if Valid then
+                                if CoinsOnly then
+                                    Valid = false
+                                    for _, k in pairs(TargetCoins) do if string.find(Type, k) then Valid = true; break end end
+                                    -- Allow chests/priority in coin mode so you don't skip big loot (Unless ignored above)
+                                    if not Valid then
+                                        for _, k in pairs(HighPriority) do if string.find(Type, k) then Valid = true; break end end
+                                    end
+                                elseif BushesOnly then
+                                    Valid = false
+                                    for _, k in pairs(TargetBushes) do if string.find(Type, k) then Valid = true; break end end
+                                end
                             end
 
                             if Valid then
@@ -695,7 +724,7 @@ task.spawn(function()
                                         if string.find(Type, k) then IsPriority = true; break end
                                     end
                                 end
-
+                                
                                 if IsPriority then table.insert(Chests, Data) else table.insert(Others, Data) end
                             end
                         end
@@ -745,6 +774,10 @@ task.spawn(function()
                 local BestFillerID = nil
                 local BestFillerDist = Range
 
+                -- Filters
+                local CoinsOnly = Config.FarmCoinsEnabled
+                local BushesOnly = Config.FarmBushesEnabled
+
                 for id, farmeable in pairs(WorldManager.farmeables) do
                     if farmeable and farmeable.position then
                         local Dist = (farmeable.position - MyPos).Magnitude
@@ -758,20 +791,48 @@ task.spawn(function()
                             end
                             Type = string.lower(Type)
                             
-                            local IsPriority = false
-                            for _, k in pairs(HighPriority) do
-                                if string.find(Type, k) then IsPriority = true break end
+                            -- FILTER CHECK
+                            local Valid = true
+                             -- CHECK 1: IGNORE RARES
+                            if Config.IgnoreRares then
+                                for _, k in pairs(RaresList) do
+                                    if string.find(Type, k) then Valid = false; break end
+                                end
                             end
                             
-                            if IsPriority then
-                                if Dist < BestPriorityDist then
-                                    BestPriorityDist = Dist
-                                    BestPriorityID = id
+                            if Valid then
+                                if CoinsOnly then
+                                    Valid = false
+                                    for _, k in pairs(TargetCoins) do if string.find(Type, k) then Valid = true; break end end
+                                    -- Allow priority items in Coin mode (like Farm1)
+                                    if not Valid then
+                                         for _, k in pairs(HighPriority) do if string.find(Type, k) then Valid = true; break end end
+                                    end
+                                elseif BushesOnly then
+                                    Valid = false
+                                    for _, k in pairs(TargetBushes) do if string.find(Type, k) then Valid = true; break end end
                                 end
-                            else
-                                if Dist < BestFillerDist then
-                                    BestFillerDist = Dist
-                                    BestFillerID = id
+                            end
+                            
+                            if Valid then
+                                local IsPriority = false
+                                -- Check GroupChests setting for priority
+                                if Config.GroupChests and not BushesOnly then
+                                    for _, k in pairs(HighPriority) do
+                                        if string.find(Type, k) then IsPriority = true; break end
+                                    end
+                                end
+                                
+                                if IsPriority then
+                                    if Dist < BestPriorityDist then
+                                        BestPriorityDist = Dist
+                                        BestPriorityID = id
+                                    end
+                                else
+                                    if Dist < BestFillerDist then
+                                        BestFillerDist = Dist
+                                        BestFillerID = id
+                                    end
                                 end
                             end
                         end
