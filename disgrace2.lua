@@ -1,5 +1,5 @@
 --// Modern Merchant GUI + Advanced Farming
---// Features: Merchant Auto-Buy, Magnet, Single Farm, Group Farm, Config Saving, Ignore Rares
+--// Features: Merchant Auto-Buy, Magnet, Single Farm, Group Farm, Config Saving, Ignore Rares, Event NPC Farm
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -40,7 +40,8 @@ local Config = {
     FarmBushesEnabled = false, -- Target only bushes/plants
     GroupChests = true,        -- true = All pets on one chest; false = 1 pet per chest
     IgnoreRares = false,       -- NEW: Ignore Crystals/Super Candy
-
+    EventNPCEnabled = false,   -- Toggle for Event NPC Farm
+    EventBossEnabled = false,  -- Toggle for Event Boss
     ConfigName = "Default"
 }
 
@@ -65,6 +66,7 @@ local Items = {
     {display = "Incense", key = "items:incense", price = 5000},
     {display = "Meteorite", key = "items:meteorite", price = 5000},
     {display = "x2 Celestial Luck!", key = "items:x2_celestial_luck!", price = 1500000},
+
     -- Stones
     {display = "Dragon Evo Stone", key = "items:dragon_evolution_stone", price = 29},
     {display = "Grass Evo Stone", key = "items:grass_evolution_stone", price = 29},
@@ -132,7 +134,8 @@ local function saveConfig(name)
         FarmBushesEnabled = Config.FarmBushesEnabled,
         GroupChests = Config.GroupChests,
         IgnoreRares = Config.IgnoreRares, -- NEW
-        
+        EventNPCEnabled = Config.EventNPCEnabled,
+        EventBossEnabled = Config.EventBossEnabled,
         ConfigName = name
     }
     
@@ -158,6 +161,8 @@ local function loadConfig(name)
             Config.FarmCoinsEnabled = r.FarmCoinsEnabled or false
             Config.FarmBushesEnabled = r.FarmBushesEnabled or false
             Config.IgnoreRares = r.IgnoreRares or false -- NEW
+            Config.EventNPCEnabled = r.EventNPCEnabled or false
+            Config.EventBossEnabled = r.EventBossEnabled or false
 
             -- Special check for GroupChests to default to TRUE if nil (for old configs)
             if r.GroupChests ~= nil then
@@ -165,7 +170,7 @@ local function loadConfig(name)
             else
                 Config.GroupChests = true 
             end
-            
+
             Config.ConfigName = name
             return true
         end
@@ -278,8 +283,10 @@ local ConfigPage = create("ScrollingFrame", { Parent = PageContainer, Size = UDi
 
 create("UIListLayout", { Parent = MerchantPage, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8) })
 create("UIPadding", { Parent = MerchantPage, PaddingRight = UDim.new(0, 4) })
+
 create("UIListLayout", { Parent = FarmingPage, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8) })
 create("UIPadding", { Parent = FarmingPage, PaddingRight = UDim.new(0, 4) })
+
 create("UIListLayout", { Parent = ConfigPage, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8) })
 
 -- Switch Tabs
@@ -303,9 +310,7 @@ end)
 
 -- 1. MAGNET SECTION (FIXED UI)
 local MagnetPanel = create("Frame", { Parent = FarmingPage, Size = UDim2.new(1, 0, 0, 60), BackgroundColor3 = C_MAIN }, { create("UICorner", {CornerRadius = UDim.new(0, 6)}), create("UIStroke", {Color = C_ACCENT}) })
-
 create("TextLabel", { Parent = MagnetPanel, Text = "Magnet Collection", Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = C_TEXT_DIM, Size = UDim2.new(1, -20, 0, 20), Position = UDim2.new(0, 10, 0, 5), BackgroundTransparency = 1, TextXAlignment = Enum.TextXAlignment.Left })
-
 local MagnetBtn = create("TextButton", {
     Parent = MagnetPanel, Size = UDim2.new(1, -20, 0, 26), Position = UDim2.new(0, 10, 0, 28),
     BackgroundColor3 = C_ACCENT, Text = "Enable Infinite Magnet", Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = C_TEXT
@@ -320,8 +325,8 @@ local function SetMagnetState(state)
         MagnetBtn.Text = "Magnet Active"
         MagnetBtn.TextColor3 = C_GREEN
         MagnetBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-        local orbFolder = workspace:WaitForChild("Orbs")
         
+        local orbFolder = workspace:WaitForChild("Orbs")
         local function magnet(orb)
             if not Config.InfiniteMagnet then return end
             local part = orb:IsA("Model") and (orb.PrimaryPart or orb:FindFirstChildWhichIsA("BasePart")) or orb:IsA("BasePart") and orb
@@ -337,6 +342,7 @@ local function SetMagnetState(state)
             end)
             table.insert(magnetConnections, connection)
         end
+        
         for _, orb in pairs(orbFolder:GetChildren()) do magnet(orb) end
         magnetListener = orbFolder.ChildAdded:Connect(function(orb) task.wait(); if Config.InfiniteMagnet then magnet(orb) end end)
     else
@@ -354,12 +360,10 @@ if Config.InfiniteMagnet then SetMagnetState(true) end
 -- 2. RANGE SETTING
 local RangePanel = create("Frame", { Parent = FarmingPage, Size = UDim2.new(1, 0, 0, 60), BackgroundColor3 = C_MAIN }, { create("UICorner", {CornerRadius = UDim.new(0, 6)}), create("UIStroke", {Color = C_ACCENT}) })
 create("TextLabel", { Parent = RangePanel, Text = "Farm Range (50-400)", Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = C_TEXT_DIM, Size = UDim2.new(1, -20, 0, 20), Position = UDim2.new(0, 10, 0, 5), BackgroundTransparency = 1, TextXAlignment = Enum.TextXAlignment.Left })
-
 local RangeInput = create("TextBox", {
     Parent = RangePanel, Size = UDim2.new(1, -20, 0, 26), Position = UDim2.new(0, 10, 0, 28),
     BackgroundColor3 = C_BG, Text = tostring(Config.FarmRange), TextColor3 = C_BLUE, Font = Enum.Font.Code, TextSize = 13
 }, { create("UICorner", {CornerRadius = UDim.new(0, 4)}), create("UIStroke", {Color = C_ACCENT}) })
-
 addTooltip(RangeInput, "Set the detection range for auto farming")
 
 RangeInput.FocusLost:Connect(function()
@@ -374,9 +378,10 @@ RangeInput.FocusLost:Connect(function()
 end)
 
 local updateFarmButtons -- This tells the script "this function is coming later"
+
 -- 2.5 FILTERS & SETTINGS
 -- Increased height for the new button
-local FilterPanel = create("Frame", { Parent = FarmingPage, Size = UDim2.new(1, 0, 0, 155), BackgroundColor3 = C_MAIN }, { create("UICorner", {CornerRadius = UDim.new(0, 6)}), create("UIStroke", {Color = C_ACCENT}) })
+local FilterPanel = create("Frame", { Parent = FarmingPage, Size = UDim2.new(1, 0, 0, 207), BackgroundColor3 = C_MAIN }, { create("UICorner", {CornerRadius = UDim.new(0, 6)}), create("UIStroke", {Color = C_ACCENT}) })
 create("TextLabel", { Parent = FilterPanel, Text = "Target Filter", Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = C_TEXT_DIM, Size = UDim2.new(1, -20, 0, 20), Position = UDim2.new(0, 10, 0, 5), BackgroundTransparency = 1, TextXAlignment = Enum.TextXAlignment.Left })
 
 -- 1. Default Button (Top)
@@ -392,25 +397,64 @@ addTooltip(GroupChestBtn, "ON: All of your pets rush to petballs & chests. OFF: 
 
 -- 4. IGNORE RARES (NEW)
 local IgnoreRaresBtn = create("TextButton", { Parent = FilterPanel, Size = UDim2.new(1, -20, 0, 24), Position = UDim2.new(0, 10, 0, 116), BackgroundColor3 = C_ACCENT, Text = "Ignore Crystals & Super Candy: OFF", Font = Enum.Font.GothamBold, TextSize = 11, TextColor3 = C_TEXT }, { create("UICorner", {CornerRadius = UDim.new(0, 4)}) })
+
 addTooltip(IgnoreRaresBtn, "When ON, pets will not target Crystals or Super Candy.")
 
+-- 5. EVENT NPC FARM (NEW)
+local EventNPCBtn = create("TextButton", { Parent = FilterPanel, Size = UDim2.new(1, -20, 0, 24), Position = UDim2.new(0, 10, 0, 144), BackgroundColor3 = C_ACCENT, Text = "Event NPC Farm: OFF", Font = Enum.Font.GothamBold, TextSize = 11, TextColor3 = C_TEXT }, { create("UICorner", {CornerRadius = UDim.new(0, 4)}) })
+addTooltip(EventNPCBtn, "Targets Christmas NPCs (Thistling, Shooba, Stegrump).")
+
+local EventBossBtn = create("TextButton", { Parent = FilterPanel, Size = UDim2.new(1, -20, 0, 24), Position = UDim2.new(0, 10, 0, 172), BackgroundColor3 = C_ACCENT, Text = "Include Event Boss: OFF", Font = Enum.Font.GothamBold, TextSize = 11, TextColor3 = C_TEXT }, { create("UICorner", {CornerRadius = UDim.new(0, 4)}) })
+addTooltip(EventBossBtn, "Also target the Event Boss (Ice1) if Event NPC Farm is ON.")
+
+EventNPCBtn.MouseButton1Click:Connect(function()
+    Config.EventNPCEnabled = not Config.EventNPCEnabled
+    if Config.EventNPCEnabled then
+        Config.FarmCoinsEnabled = false
+        Config.FarmBushesEnabled = false
+    else
+        Config.EventBossEnabled = false
+    end
+    updateFarmButtons()
+end)
+
+EventBossBtn.MouseButton1Click:Connect(function()
+    Config.EventBossEnabled = not Config.EventBossEnabled
+    if Config.EventBossEnabled then
+        Config.EventNPCEnabled = true
+        Config.FarmCoinsEnabled = false
+        Config.FarmBushesEnabled = false
+    end
+    updateFarmButtons()
+end)
 
 -- Logic: "Radio Button" style. Clicking one disables the others.
+
 DefaultBtn.MouseButton1Click:Connect(function()
     Config.FarmCoinsEnabled = false
     Config.FarmBushesEnabled = false
+    Config.EventNPCEnabled = false
+    Config.EventBossEnabled = false
     updateFarmButtons()
 end)
 
 CoinsBtn.MouseButton1Click:Connect(function()
     Config.FarmCoinsEnabled = not Config.FarmCoinsEnabled
-    if Config.FarmCoinsEnabled then Config.FarmBushesEnabled = false end
+    if Config.FarmCoinsEnabled then
+        Config.FarmBushesEnabled = false
+        Config.EventNPCEnabled = false
+        Config.EventBossEnabled = false
+    end
     updateFarmButtons()
 end)
 
 BushesBtn.MouseButton1Click:Connect(function()
     Config.FarmBushesEnabled = not Config.FarmBushesEnabled
-    if Config.FarmBushesEnabled then Config.FarmCoinsEnabled = false end
+    if Config.FarmBushesEnabled then
+        Config.FarmCoinsEnabled = false
+        Config.EventNPCEnabled = false
+        Config.EventBossEnabled = false
+    end
     updateFarmButtons()
 end)
 
@@ -458,12 +502,12 @@ updateFarmButtons = function()
         Farm2Btn.TextColor3 = C_TEXT
         Farm2Btn.BackgroundColor3 = C_ACCENT
     end
-
+    
     -- Filter Buttons Logic (Radio Style)
     local isCoins = Config.FarmCoinsEnabled
     local isBushes = Config.FarmBushesEnabled
-    local isDefault = (not isCoins and not isBushes) -- If both are off, Default is ON
-
+    local isDefault = (not isCoins and not isBushes and not Config.EventNPCEnabled) -- If all are off, Default is ON
+    
     -- 1. Default Button
     if isDefault then
         DefaultBtn.BackgroundColor3 = C_GREEN
@@ -472,7 +516,7 @@ updateFarmButtons = function()
         DefaultBtn.BackgroundColor3 = C_ACCENT
         DefaultBtn.TextColor3 = C_TEXT
     end
-
+    
     -- 2. Coins Button
     if isCoins then
         CoinsBtn.BackgroundColor3 = C_GREEN
@@ -481,7 +525,7 @@ updateFarmButtons = function()
         CoinsBtn.BackgroundColor3 = C_ACCENT
         CoinsBtn.TextColor3 = C_TEXT
     end
-
+    
     -- 3. Bushes Button
     if isBushes then
         BushesBtn.BackgroundColor3 = C_GREEN
@@ -508,20 +552,36 @@ updateFarmButtons = function()
         IgnoreRaresBtn.Text = "Ignore Crystals & Super Candy: OFF"
         IgnoreRaresBtn.TextColor3 = C_RED
     end
-end
 
+    -- Event NPC
+    if Config.EventNPCEnabled then
+        EventNPCBtn.Text = "Event NPC Farm: ON"
+        EventNPCBtn.TextColor3 = C_GREEN
+        EventNPCBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    else
+        EventNPCBtn.Text = "Event NPC Farm: OFF"
+        EventNPCBtn.TextColor3 = C_TEXT
+        EventNPCBtn.BackgroundColor3 = C_ACCENT
+    end
+
+    if Config.EventBossEnabled then
+        EventBossBtn.Text = "Include Event Boss: ON"
+        EventBossBtn.TextColor3 = C_GREEN
+    else
+        EventBossBtn.Text = "Include Event Boss: OFF"
+        EventBossBtn.TextColor3 = C_RED
+    end
+end
 Farm1Btn.MouseButton1Click:Connect(function()
     Config.Farm1Enabled = not Config.Farm1Enabled
     if Config.Farm1Enabled then Config.Farm2Enabled = false end -- Disable other
     updateFarmButtons()
 end)
-
 Farm2Btn.MouseButton1Click:Connect(function()
     Config.Farm2Enabled = not Config.Farm2Enabled
     if Config.Farm2Enabled then Config.Farm1Enabled = false end -- Disable other
     updateFarmButtons()
 end)
-
 updateFarmButtons() -- Init state
 
 --== MERCHANT PAGE LOGIC ==--
@@ -530,17 +590,16 @@ local function createCategory(name, items, order)
     local Header = create("TextButton", { Parent = Wrapper, Size = UDim2.new(1, 0, 0, 36), BackgroundTransparency = 1, Text = "", ZIndex = 2 })
     create("TextLabel", { Parent = Header, Text = name, Font = Enum.Font.GothamBold, TextSize = 13, TextColor3 = C_TEXT, Size = UDim2.new(1, -90, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, TextXAlignment = Enum.TextXAlignment.Left })
     local Arrow = create("TextLabel", { Parent = Header, Text = "+", Font = Enum.Font.GothamBold, TextSize = 18, TextColor3 = C_TEXT_DIM, Size = UDim2.new(0, 30, 1, 0), Position = UDim2.new(1, -30, 0, 0), BackgroundTransparency = 1 })
-    
     local SelectAllBtn = create("TextButton", { Parent = Header, Size = UDim2.new(0, 60, 0, 20), Position = UDim2.new(1, -100, 0, 8), BackgroundColor3 = C_ACCENT, Text = "Select All", Font = Enum.Font.Gotham, TextSize = 10, TextColor3 = C_TEXT, ZIndex = 3 }, { create("UICorner", {CornerRadius = UDim.new(0, 4)}) })
     addTooltip(SelectAllBtn, "Toggle all items in this category")
 
     local ItemContainer = create("Frame", { Parent = Wrapper, Size = UDim2.new(1, -16, 0, 0), Position = UDim2.new(0, 8, 0, 36), BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y })
     local List = create("UIListLayout", { Parent = ItemContainer, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4) })
+    
     local itemToggles = {}
-
     for _, item in ipairs(items) do
         local row = create("Frame", { Parent = ItemContainer, Size = UDim2.new(1, 0, 0, 24), BackgroundColor3 = C_BG }, { create("UICorner", {CornerRadius = UDim.new(0, 4)}) })
-        local check = create("TextButton", { Parent = row, Size = UDim2.new(0, 24, 0, 24), BackgroundTransparency = 1, Text = "", Font = Enum.Font.GothamBold, TextSize = 14, TextColor3 = C_GREEN })
+        local check = create("TextButton", { Parent = row, Size = UDim2.new(0, 24, 0, 24), BackgroundTransparency = 1, Text = "✔", Font = Enum.Font.GothamBold, TextSize = 14, TextColor3 = C_GREEN })
         local box = create("Frame", { Parent = check, Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0.5, -7, 0.5, -7), BackgroundColor3 = C_MAIN, BorderColor3 = C_TEXT_DIM, BorderSizePixel = 1 })
         
         local function updateCheck() box.BackgroundColor3 = Config.SelectedItems[item.key] and C_GREEN or C_MAIN end
@@ -549,13 +608,13 @@ local function createCategory(name, items, order)
         check.MouseButton1Click:Connect(function() Config.SelectedItems[item.key] = not Config.SelectedItems[item.key]; updateCheck() end)
         create("TextLabel", { Parent = row, Size = UDim2.new(1, -30, 1, 0), Position = UDim2.new(0, 30, 0, 0), BackgroundTransparency = 1, Text = item.display .. " [$" .. item.price .. "]", Font = Enum.Font.Gotham, TextSize = 12, TextColor3 = C_TEXT_DIM, TextXAlignment = Enum.TextXAlignment.Left })
     end
-
+    
     SelectAllBtn.MouseButton1Click:Connect(function()
         local allSelected = true
         for _, item in ipairs(items) do if not Config.SelectedItems[item.key] then allSelected = false break end end
         for _, item in ipairs(items) do Config.SelectedItems[item.key] = not allSelected; if itemToggles[item.key] then itemToggles[item.key]() end end
     end)
-
+    
     local expanded = false
     Header.MouseButton1Click:Connect(function()
         expanded = not expanded
@@ -579,6 +638,7 @@ local DelayInput = create("TextBox", { Parent = AutoBuyPanel, Size = UDim2.new(0
 create("TextLabel", { Parent = AutoBuyPanel, Text = "Delay (s):", Position = UDim2.new(1, -130, 0, 15), Size = UDim2.new(0, 60, 0, 30), BackgroundTransparency = 1, TextColor3 = C_TEXT_DIM, Font = Enum.Font.Gotham, TextSize = 12 })
 DelayInput.FocusLost:Connect(function() local n = tonumber(DelayInput.Text); if n then Config.AutoBuyDelay = n else DelayInput.Text = tostring(Config.AutoBuyDelay) end end)
 
+
 --== CONFIG PAGE LOGIC ==--
 local StatusLabel = create("TextLabel", { Parent = ConfigPage, LayoutOrder = 0, Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Text = "Current Config: " .. Config.ConfigName, TextColor3 = C_GREEN, Font = Enum.Font.Code, TextSize = 12 })
 local AutoLoadLabel = create("TextLabel", { Parent = ConfigPage, LayoutOrder = 1, Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Text = "Auto-Load: " .. (Settings.AutoLoadEnabled and Settings.AutoLoadConfigName or "Disabled"), TextColor3 = C_BLUE, Font = Enum.Font.Code, TextSize = 12 })
@@ -601,7 +661,7 @@ local function refreshConfigList()
     create("UIListLayout", { Parent = ConfigListFrame, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4) })
     for _, fname in ipairs(listConfigs()) do
         local row = create("Frame", { Parent = ConfigListFrame, Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = C_MAIN }, { create("UICorner", {CornerRadius = UDim.new(0, 4)}) })
-        local loadB = create("TextButton", { Parent = row, Size = UDim2.new(1, -120, 1, 0), BackgroundTransparency = 1, Text = " " .. fname, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = C_TEXT, Font = Enum.Font.Gotham, TextSize = 13 })
+        local loadB = create("TextButton", { Parent = row, Size = UDim2.new(1, -120, 1, 0), BackgroundTransparency = 1, Text = "  " .. fname, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = C_TEXT, Font = Enum.Font.Gotham, TextSize = 13 })
         loadB.MouseButton1Click:Connect(function() if loadConfig(fname) then updateInfo(); NameInput.Text = fname; DelayInput.Text = tostring(Config.AutoBuyDelay); updateMasterToggle() end end)
         local mainB = create("TextButton", { Parent = row, Size = UDim2.new(0, 60, 1, 0), Position = UDim2.new(1, -90, 0, 0), BackgroundColor3 = C_BLUE, Text = "Main", TextColor3 = C_TEXT, Font = Enum.Font.GothamBold, TextSize = 10 })
         mainB.MouseButton1Click:Connect(function() Settings.AutoLoadConfigName = fname; Settings.AutoLoadEnabled = true; saveMainSettings(); updateInfo() end)
@@ -609,7 +669,6 @@ local function refreshConfigList()
         delB.MouseButton1Click:Connect(function() deleteConfig(fname); refreshConfigList() end)
     end
 end
-
 SaveBtn.MouseButton1Click:Connect(function() local n = NameInput.Text; if n == "" then n = Config.ConfigName end; saveConfig(n); updateInfo(); task.wait(0.1); refreshConfigList() end)
 RefreshBtn.MouseButton1Click:Connect(refreshConfigList)
 refreshConfigList()
@@ -641,15 +700,18 @@ task.spawn(function()
     local WorldManager = require(Source:WaitForChild("ClientWorldManager"))
     local ClientPlayerManager = require(Source:WaitForChild("ClientPlayerManager"))
     local EventHandler = require(ReplicatedStorage.Common.EventHandler)
-
+    
     local HighPriority = {"chest", "petball", "super_candy", "crystal"}
     local RaresList = {"crystal", "super_candy"} -- Objects to ignore if checkbox is checked
+    
     -- Filter Lists
     local TargetCoins = {"coin", "pile", "diamond"}
     local TargetBushes = {"bush", "tree", "flower", "plant", "shrub", "mushroom"}
+    local EventKeywords = {"16_thistling", "15_shooba", "18_stegrump"}
+    local BossKeyword = "20_ice1"
 
     print(">> Farming Logic Loaded")
-
+    
     while ScreenGui.Parent do
         task.wait(0.2)
         local Character = LocalPlayer.Character
@@ -667,7 +729,7 @@ task.spawn(function()
                     end
                 end
             end
-
+            
             if #FreePets > 0 then
                 local MyPos = Root.Position
                 local Chests = {}
@@ -698,12 +760,26 @@ task.spawn(function()
                                     if string.find(Type, k) then Valid = false; break end
                                 end
                             end
-
+                            
+                            -- CHECK 2: FILTERS
                             if Valid then
-                                if CoinsOnly then
+                                if Config.EventNPCEnabled then
+                                    Valid = false
+                                    -- Deep Scan for Child Names (Fix for Random Number Models)
+                                    local Model = workspace.Farmeables:FindFirstChild(tostring(id))
+                                    if Model then
+                                        for _, child in pairs(Model:GetChildren()) do
+                                            local cName = string.lower(child.Name)
+                                            for _, kw in pairs(EventKeywords) do
+                                                if string.find(cName, kw) then Valid = true; break end
+                                            end
+                                            if Config.EventBossEnabled and string.find(cName, BossKeyword) then Valid = true end
+                                            if Valid then break end
+                                        end
+                                    end
+                                elseif CoinsOnly then
                                     Valid = false
                                     for _, k in pairs(TargetCoins) do if string.find(Type, k) then Valid = true; break end end
-                                    -- Allow chests/priority in coin mode so you don't skip big loot (Unless ignored above)
                                     if not Valid then
                                         for _, k in pairs(HighPriority) do if string.find(Type, k) then Valid = true; break end end
                                     end
@@ -712,14 +788,16 @@ task.spawn(function()
                                     for _, k in pairs(TargetBushes) do if string.find(Type, k) then Valid = true; break end end
                                 end
                             end
-
+                            
                             if Valid then
                                 local Data = {id=id, dist=Dist}
                                 local IsPriority = false
                                 
+                                -- FIX: DO NOT force priority for Event NPCs in Single Farm. 
+                                -- We want them to fall into 'Others' so they get distributed 1 pet per NPC.
+                                
                                 -- Only prioritize (group up) if GroupChests is ON
-                                -- And usually we don't group up for bushes, so ignore priority if BushesOnly is active
-                                if Config.GroupChests and not BushesOnly then
+                                if Config.GroupChests and not BushesOnly and not Config.EventNPCEnabled then
                                     for _, k in pairs(HighPriority) do
                                         if string.find(Type, k) then IsPriority = true; break end
                                     end
@@ -736,7 +814,6 @@ task.spawn(function()
                 
                 -- 3. ASSIGN TASKS
                 local Tasks = {}
-                
                 if #Chests > 0 then
                     -- CHEST MODE: All free pets go to ONE chest (Priority)
                     local Target = Chests[1].id
@@ -744,7 +821,7 @@ task.spawn(function()
                         Tasks[petID] = { ["task"] = "farm", ["target_id"] = Target }
                     end
                 else
-                    -- SCATTER MODE: 1 Pet per Target
+                    -- SCATTER MODE: 1 Pet per Target (Event NPCs will use this now)
                     local CoinIndex = 1
                     for _, petID in pairs(FreePets) do
                         if Others[CoinIndex] then
@@ -762,7 +839,7 @@ task.spawn(function()
                     EventHandler:send("SET_PETS_TASKS", Tasks)
                 end
             end
-
+            
         -- === FARM 2: GROUP FARM (WOLF PACK) ===
         elseif Config.Farm2Enabled and Root then
             if WorldManager:count_free_pets() > 0 then
@@ -773,15 +850,14 @@ task.spawn(function()
                 local BestPriorityDist = Range
                 local BestFillerID = nil
                 local BestFillerDist = Range
-
+                
                 -- Filters
                 local CoinsOnly = Config.FarmCoinsEnabled
                 local BushesOnly = Config.FarmBushesEnabled
-
+                
                 for id, farmeable in pairs(WorldManager.farmeables) do
                     if farmeable and farmeable.position then
                         local Dist = (farmeable.position - MyPos).Magnitude
-                        
                         if Dist < Range then
                             local Type = "unknown"
                             if farmeable.render then
@@ -793,7 +869,7 @@ task.spawn(function()
                             
                             -- FILTER CHECK
                             local Valid = true
-                             -- CHECK 1: IGNORE RARES
+                            -- CHECK 1: IGNORE RARES
                             if Config.IgnoreRares then
                                 for _, k in pairs(RaresList) do
                                     if string.find(Type, k) then Valid = false; break end
@@ -801,12 +877,25 @@ task.spawn(function()
                             end
                             
                             if Valid then
-                                if CoinsOnly then
+                                if Config.EventNPCEnabled then
+                                    Valid = false
+                                    local Model = workspace.Farmeables:FindFirstChild(tostring(id))
+                                    if Model then
+                                        for _, child in pairs(Model:GetChildren()) do
+                                            local cName = string.lower(child.Name)
+                                            for _, kw in pairs(EventKeywords) do
+                                                if string.find(cName, kw) then Valid = true; break end
+                                            end
+                                            if Config.EventBossEnabled and string.find(cName, BossKeyword) then Valid = true end
+                                            if Valid then break end
+                                        end
+                                    end
+                                elseif CoinsOnly then
                                     Valid = false
                                     for _, k in pairs(TargetCoins) do if string.find(Type, k) then Valid = true; break end end
                                     -- Allow priority items in Coin mode (like Farm1)
                                     if not Valid then
-                                         for _, k in pairs(HighPriority) do if string.find(Type, k) then Valid = true; break end end
+                                        for _, k in pairs(HighPriority) do if string.find(Type, k) then Valid = true; break end end
                                     end
                                 elseif BushesOnly then
                                     Valid = false
@@ -816,6 +905,7 @@ task.spawn(function()
                             
                             if Valid then
                                 local IsPriority = false
+                                if Config.EventNPCEnabled then IsPriority = true end
                                 -- Check GroupChests setting for priority
                                 if Config.GroupChests and not BushesOnly then
                                     for _, k in pairs(HighPriority) do
